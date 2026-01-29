@@ -1,5 +1,7 @@
 # Metaheuristic Feature Selection: A Comparative Study
 
+# Tensae & Esubalew
+
 A comparative analysis of Genetic Algorithm (GA), Particle Swarm Optimization (PSO), and Simulated Annealing (SA) against a SHAP baseline for feature selection on the Breast Cancer Wisconsin dataset.
 
 ## Project Structure
