@@ -22,7 +22,7 @@ import os
 from algorithms.genetic_algorithm import GeneticAlgorithm
 from algorithms.particle_swarm import ParticleSwarmOptimization
 from algorithms.simulated_annealing import SimulatedAnnealing
-from shap_baseline import SHAPFeatureSelector, SHAP_AVAILABLE
+from algorithms.shap_selection import SHAPFeatureSelection
 
 warnings.filterwarnings('ignore')
 
@@ -115,7 +115,7 @@ def run_single_experiment(
             c2=1.5,
             seed=seed
         )
-    else:  # SimulatedAnnealing
+    elif algorithm_class == SimulatedAnnealing:
         optimizer = algorithm_class(
             n_features=n_features,
             fitness_func=fitness_func,
@@ -125,6 +125,10 @@ def run_single_experiment(
             n_neighbors=pop_size,
             seed=seed
         )
+    else:
+        # SHAPFeatureSelection - needs X, y data passed via context
+        # This is handled separately in run_experiment_batch
+        raise ValueError("SHAP should be handled separately")
     
     best_solution, best_fitness, convergence = optimizer.optimize()
     
@@ -284,7 +288,7 @@ def plot_accuracy_comparison(results: dict, output_path: str):
         results: Dictionary with experimental results.
         output_path: Path to save the plot.
     """
-    plt.figure(figsize=(10, 6))
+    plt.figure(figsize=(8, 6))
     colors = {'GA': '#2E86AB', 'PSO': '#E94F37', 'SA': '#44AF69', 'SHAP': '#9B59B6'}
     
     data = [results[name]['fitness'] for name in results]
@@ -358,6 +362,7 @@ def main():
     
     fitness_func = create_fitness_function(X, y)
     
+    # Metaheuristic algorithms
     algorithms = {
         'GA': GeneticAlgorithm,
         'PSO': ParticleSwarmOptimization,
@@ -374,11 +379,25 @@ def main():
         pop_size=30
     )
     
-    if SHAP_AVAILABLE:
-        shap_results = run_shap_experiment(X, y, n_runs=30)
-        results['SHAP'] = shap_results
-    else:
-        print("\nWARNING: SHAP not available. Install with: pip install shap")
+    # Run SHAP baseline (SOTA for XAI feature selection)
+    print("\nRunning SHAP baseline (30 independent runs)...")
+    results['SHAP'] = {'fitness': [], 'n_selected': [], 'convergences': []}
+    for run in range(30):
+        shap_selector = SHAPFeatureSelection(
+            n_features=X.shape[1],
+            X=X,
+            y=y,
+            n_estimators=100,
+            k_neighbors=5,
+            seed=run * 100 + 42
+        )
+        best_solution, best_fitness, convergence = shap_selector.optimize(max_iter=50)
+        results['SHAP']['fitness'].append(best_fitness)
+        results['SHAP']['n_selected'].append(int(np.sum(best_solution)))
+        results['SHAP']['convergences'].append(convergence)
+        
+        if (run + 1) % 10 == 0:
+            print(f"  Completed {run + 1}/30 runs")
     
     print("\n" + "=" * 60)
     print("RESULTS")
